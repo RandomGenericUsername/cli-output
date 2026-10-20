@@ -1,18 +1,37 @@
 [project]
 name = "cli-output"
 version = "0.1.0"
-description = "Shared domain-neutral output rendering for CLI tools"
+description = "Shared CLI presentation layer (Rich/plain/JSON renderers) for the dotfiles CLI toolchain"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.12"
 dependencies = [
     "rich>=13.0",
 ]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Typing :: Typed",
+]
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/cli_output"]
+
+# The harness trees (.agents/, _bmad/, .opencode/, openspec/, tickets/) are not
+# package content; keep them out of the sdist.
+[tool.hatch.build.targets.sdist]
+only-include = [
+    "pyproject.toml",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "src/cli_output",
+    "tests",
+]
 
 [tool.uv.sources]
 
