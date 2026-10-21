@@ -7,8 +7,8 @@ lane: 3
 links:
   openspec: repo-birth
   bmad: none
-worktree: none
-branch: ticket/req-001-repo-birth
+worktree: .worktrees/req-001-archive/
+branch: ticket/req-001-archive-close-birth
 ---
 
 # Birth the cli-output repo (mu-strict) and cut v0.1.0
@@ -35,9 +35,10 @@ step of the slice in that repo.
   Verify: `diff` per path (see the evidence table) → empty, exit 0.
 - [x] `AGENTS.md` carries the evidence rule and this repo's charter; `CLAUDE.md` is a symlink.
   Verify: `rg -c "Evidence:|Verify:" AGENTS.md` → ≥ 2; `test -L CLAUDE.md` → exit 0.
-- [x] `tickets/INDEX.md` lists this ticket with the same status as the frontmatter, and the
-  OpenSpec change validates strictly.
-  Verify: `openspec validate repo-birth --strict` → exit 0.
+- [x] `tickets/INDEX.md` lists this ticket with the same status as the frontmatter; the OpenSpec
+  change validated strictly while it was active and is now archived.
+  Verify: `openspec validate --all --strict` → `Totals: 2 passed, 0 failed (2 items)`, exit 0;
+  `ls openspec/changes/archive/2026-10-21-repo-birth` → the change's four files.
 - [x] A fresh clone passes `make sync && make test && make gates && make hermetic` and builds both
   artifacts.
   Verify: `uv sync --frozen && uv run pytest -q && make gates && make build` → exit 0;
@@ -115,3 +116,37 @@ Slice commits (oldest first, all on `main`):
 | --- | --- |
 | `501d2b2` | `plan(REQ-001): open repo-birth ticket, OpenSpec change, and release docs` |
 | `ddae372` | `feat(REQ-001): mu-strict harness, fresh-clone gates, and release CI` |
+
+### Archive closeout (2026-10-21)
+
+Closed on `ticket/req-001-archive-close-birth` (worktree `.worktrees/req-001-archive/`, created by
+`bash scripts/worktree-guard.sh create req-001-archive close-birth` → `worktree=.worktrees/req-001-archive/`,
+`branch=ticket/req-001-archive-close-birth`, exit 0). The status/acceptance ticks above were
+already recorded by the 2026-10-19 closeout; this pass re-ran every gate from the released state
+and archives the linked change, which was the one lifecycle step left open.
+
+Re-verification on the released state (`main` = `0009410`, tag `v0.1.0` = `ddae372`):
+
+| Claim | Command | Result |
+| --- | --- | --- |
+| Tree clean before ticking | `git status --porcelain \| wc -l` | `0` |
+| Gates green | `make gates` | `63 passed in 0.53s`; ruff `All checks passed!`; hermetic `63 passed in 0.32s`; `uv lock --check` → `Resolved 13 packages in 1ms`; docs-check silent → exit `0` |
+| Workflow ↔ Makefile parity | `make ci-gates-parity` | `PASS gates=['docs-check', 'hermetic', 'lint', 'lock-check', 'test'] jobs=['ci-gates-parity', 'docs-check', 'hermetic', 'lint', 'lock-check', 'release', 'test'] exempt=['ci-gates-parity', 'release']`, exit `0` |
+| Packaging rebuilds | `uv build` | `Successfully built dist/cli_output-0.1.0.tar.gz` + `dist/cli_output-0.1.0-py3-none-any.whl`, exit `0`; `ls -1 dist/` → those two names |
+| Fresh install from the public tag, isolated tool dirs | `UV_TOOL_DIR=/tmp/opencode/cli-output-tool/tools UV_TOOL_BIN_DIR=/tmp/opencode/cli-output-tool/bin uvx --no-cache --from git+https://github.com/RandomGenericUsername/cli-output@v0.1.0 python -c "import cli_output, importlib.metadata as m; print(m.version('cli-output'), len(cli_output.__all__))"` | resolved/updated to `ddae372786fd6053730133e82cf542a17e9a5ae5`, `version 0.1.0`, `public 14`, exit `0` |
+| `uv tool install` variant is N/A for a library | `UV_TOOL_DIR=… uv tool install --no-cache git+…@v0.1.0` | exit `2`: `No executables are provided by package cli-output; removing tool` — the package ships no console script, so `uvx` above is the executable-free equivalent and is the evidence used |
+| Release artifact installs and imports | `gh release download v0.1.0 -R RandomGenericUsername/cli-output -D rel-assets` → `uv venv` → `uv pip install rel-assets/cli_output-0.1.0-py3-none-any.whl` → `python -c "import cli_output, importlib.metadata as m; print(m.version('cli-output'), len(cli_output.__all__))"` | `version 0.1.0`, `exports` = the 14 public names, exit `0` |
+| Tag object and peeled commit | `git rev-parse v0.1.0`; `git rev-parse 'v0.1.0^{commit}'`; `git cat-file -t v0.1.0` | `91489b73b54e6cd09dc54e360431a3ebb915fa05`; `ddae372786fd6053730133e82cf542a17e9a5ae5`; `tag` (annotated) |
+| Tag anonymously fetchable, one line | `GIT_TERMINAL_PROMPT=0 git -c credential.helper= ls-remote https://github.com/RandomGenericUsername/cli-output 'refs/tags/v0.1.0'` | `91489b73b54e6cd09dc54e360431a3ebb915fa05	refs/tags/v0.1.0` — exactly one line, exit `0` |
+| Release assets present | `gh release view v0.1.0 -R RandomGenericUsername/cli-output --json tagName,assets --jq …` | `{"assets":["cli_output-0.1.0-py3-none-any.whl","cli_output-0.1.0.tar.gz"],"tag":"v0.1.0"}`, exit `0` — both were already attached, so no rebuild/upload was needed |
+| Repo still public | `gh api repos/RandomGenericUsername/cli-output --jq .private` | `false`, exit `0` |
+| Last three CI runs green | `gh run list -R RandomGenericUsername/cli-output --limit 3 --json status,conclusion,headBranch,event,workflowName` | `gates main push completed success`; `gates v0.1.0 push completed success`; `gates main push completed success` |
+| Change archived | `openspec archive repo-birth --yes` | `Task status: ✓ Complete`; `repo-harness: create`; `+ 4 added`; `Change 'repo-birth' archived as '2026-10-21-repo-birth'.`, exit `0` |
+| Spec set valid after archive | `openspec validate --all --strict`; `openspec validate --specs --strict` | `✓ spec/cli-output-presentation`, `✓ spec/repo-harness`, `Totals: 2 passed, 0 failed (2 items)`, exit `0` for both; `openspec list --specs` → presentation 5 requirements, repo-harness 4 |
+| `dotfiles-v3` untouched by this closeout | `git -C /home/inumaki/Development/dotfiles-v3 rev-parse master`; `git status --porcelain \| wc -l` | `56fc4b7efcd410f59f194f5560c6e7d2962f7386`, `0` — advanced past the `56d7d85…` recorded at slice time by its own commits; this closeout writes nothing there |
+
+Note: the archive generated `openspec/specs/repo-harness/spec.md` with the placeholder
+`TBD - created by archiving change repo-birth`, which fails `--strict` (exit `1`) until the
+`## Purpose` section is written; the purpose was written in the same commit, after which both
+validate commands exit `0`. The archived change under
+`openspec/changes/archive/2026-10-21-repo-birth/` is a frozen record and was not edited.
